@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+    body {
+        font: 10px sans-serif;
+        margin: 0;
+    }
+    .line {
+        fill: none;
+        stroke: grey;
+        stroke-width: 1px;
+    }
+
+    /* add classname for highlights */
+    .highlights {
+        fill: none;
+        stroke: red;
+        stroke-width: 2px;
+    }
+
+    h1{margin-left:10px}
+    h3{margin-left:10px}
+    #search{margin-left:10px}
+p{margin-left:740px}
+</style>
+<body>
+<script src="d3.v3.min.js"></script>
+<!-- hello -->
+<h1> Stock Price for US IT Companies in the 2000s </h1>
+<h3> Search your favorite year</h3>
+
+<!--search button-->
+<div id="search">
+    <input type="search" id="year-search" name="search" placeholder="Search for year.."  >
+    <input type="button" id="my-button" value="Search">
+</div>
+ <!-- Add guidance of the interaction -->
+<div>
+    <p>Click areas to show years; Double click to hide;<br/><br/>
+        Click company names to show dynamic trends;</p>
+</div>
+
+<script>
+
+
+    var margin = {top: 8, right: 10, bottom: 2, left: 10},
+        width = 960 - margin.left - margin.right,
+        height = 69 - margin.top - margin.bottom;
+
+    var parseDate = d3.time.format("%b %Y").parse;
+
+    var x = d3.time.scale()
+        .range([0, width]);
+
+    var y = d3.scale.linear()
+        .range([height, 0]);
+
+    var selectColors = ['#004C4F','#5EB1BF','#CDEDF6','#EF7B45','#D84727','#FFCE21','#97B200'];
+
+    var area = d3.svg.area()
+        .x(function(d) { return x(d.date); })
+        .y0(height)
+        .y1(function(d) { return y(d.price); });
+
+    var line = d3.svg.line()
+        .x(function(d) { return x(d.date); })
+        .y(function(d) { return y(d.price); });
+
+    //data in CSV file are loaded asynchronously
+    d3.csv("stocks3.csv", type, function(error, data) {
+        // Nest data by symbol
+        var symbols = d3.nest()
+            .key(function(d) { return d.symbol; })
+            .entries(data);
+
+        // Compute the maximum price per symbol, needed for the y-domain.
+        symbols.forEach(function(s) {
+            s.maxPrice = d3.max(s.values, function(d) { return d.price; });
+        });
+      
+        // purposely switching the stock order for story telling
+        placeaholder = symbols[5]
+            symbols[5] = symbols[6]
+            symbols[6] = placeaholder
+        
+        symbols.push(symbols.shift())
+
+        // Compute the minimum and maximum date across symbols.
+        // We assume values are sorted by date.
+        x.domain([
+            d3.min(symbols, function(s) { return s.values[0].date; }),
+            d3.max(symbols, function(s) { return s.values[s.values.length - 1].date; })
+        ]);
+
+
+
+        // Add an SVG element for each symbol, with the desired dimensions and margin.
+        var svg = d3.select("body").selectAll("svg")
+            .data(symbols)
+            .enter().append("svg")
+            .attr("width", width + margin.left + margin.right+50)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+
+
+        // Add the area path elements. Note: the y-domain is set per element.
+        svg.append("path")
+            .attr("class", "area")
+            .attr("d", function(d) { y.domain([0, d.maxPrice]); return area(d.values); })
+
+            //Use function to return the color code when drawing each area
+            .attr("fill", function(d, i) { return selectColors[i]; })
+            .attr("opacity", 0.3)
+
+            //create mouse events to change the opacity of area when the focus is on the area
+            .on("mouseover", function() {
+                d3.select(this)
+                    .attr("opacity", 1);
+            })
+            .on("mouseout", function() {
+                d3.select(this)
+                    .attr("opacity",0.3)})
+
+            //Add mouse event to show year division lines only when the user click the area;
+            .on('click', function(){
+
+                //Define an array that contains the x location of each line
+                var yearDIV = [0, 940*12/123, 940*24/123, 940*36/123, 940*48/123, 940*60/123, 940*72/123, 940*84/123, 940*96/123, 940*108/123, 940*120/123];
+
+                //draw the year division line
+                svg.selectAll('.line1')
+                    .data(yearDIV)
+                    .enter().append("line")
+                    .attr('class', 'line1')
+                    .attr("x1", function(d,i) {return yearDIV[i];})
+                    .attr("y2", 0)
+                    .attr("x2", function(d,i) {return yearDIV[i];})
+                    .attr("y2", height)
+                    .attr("stroke", "grey")
+                    .attr("stroke-width", "1px");
+
+                //Add text for each year
+                svg.selectAll('.yearT')
+                    .data(yearDIV)
+                    .enter().append('text')
+                    .attr('class', 'yearT')
+                    .attr('x', function(d,i) {return yearDIV[i]+30;})
+                    .attr('y', 30)
+                    .text(function(d,i){return i+2000})
+                    .attr('font-size', 12)
+                    .attr('fill','grey')
+                    .attr('opacity',1);
+
+            })
+            //All lines and texts disappear when double clicking the area
+            .on('dblclick', function(){
+                svg.selectAll('.line1')
+                    .remove();
+                svg.selectAll('.yearT')
+                    .remove();
+            });
+
+        // Add the line path elements. Note: the y-domain is set per element.
+        svg.append("path")
+            .attr("class", "line")
+            .attr("d", function(d) { y.domain([0, d.maxPrice]); return line(d.values); });
+
+        // Add a small label for the symbol name.
+        svg.append("text")
+            .attr('class', 'company')
+            .attr("x", width - 6)
+            .attr("y", height - 6)
+            .style("text-anchor", "end")
+            .text(function(d) { return d.key; })
+            .style("fill", "black")
+            .attr("font-size", 16)
+
+         //Add a shadow to show the dynamic transformation of the area
+            .on('click', function(){
+                //Create a shadow that cover the whole svg
+                let shadow = svg.append('rect')
+                    .attr('width', width+50)
+                    .attr('height', height)
+                    .style('fill', 'white')
+                    .attr('x', 0);
+                //Use transition to move the shadow rightward slowly
+                shadow.transition()
+                    .delay(500)
+                    .duration(10000)
+                    .attr('x', width+50)
+                    .attr('width', 0);
+            });
+
+        document.getElementById("my-button").addEventListener("click", function(e) {
+            var selectedYear = Number(String(document.getElementById('year-search').value).trim());
+            // if nothing for input, or white space for input, do nothing
+            if (!!selectedYear) {
+                // remove previous highlights
+                svg.select(".highlights").remove()
+                // append selected year and adds the redline
+                svg.append("path")
+                    .attr("class", "highlights")
+                    .attr("d", function (d) {
+                        y.domain([0, d.maxPrice]);
+                        return line(d.values.filter(e => new Date(e.date).getFullYear() === selectedYear));
+                    });
+            } else {
+                console.log('do nothing');
+            }
+        })
+    });
+
+
+
+    function type(d) {
+        d.price = +d.price;
+        d.date = parseDate(d.date);
+        return d;
+    }
+
+</script>
+
+</body>
